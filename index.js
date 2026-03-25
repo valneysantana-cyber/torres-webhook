@@ -1,3 +1,4 @@
+
 const express = require('express');
 const bodyParser = require('body-parser');
 
@@ -6,42 +7,106 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const PORT = process.env.PORT || 8000;
 
+const STAYS_BASE_URL = process.env.STAYS_API_BASE_URL || 'https://valney.stays.net/external/v1';
+const STAYS_USERNAME = process.env.STAYS_API_LOGIN || process.env.STAYS_API_USER;
+const STAYS_PASSWORD = process.env.STAYS_API_PASSWORD || process.env.STAYS_API_PASS;
+
 const HUMAN_NUMBER_PRIMARY = '+55 11 99907-3135';
 const HUMAN_NUMBER_SECONDARY = '+55 13 99615-5505';
 
-const MENU_RESPONSE = `Olá! Seja muito bem-vindo(a) à TorresGuest 😊\n\nEstou aqui para te ajudar com tudo da sua hospedagem. Escolha uma opção ou digite o tema direto:\n\n1️⃣ Wi-Fi\n2️⃣ Café da manhã\n3️⃣ Piscina e academia\n4️⃣ Estacionamento\n5️⃣ Snacks no apartamento\n6️⃣ Troca de toalhas\n7️⃣ Restaurante\n8️⃣ Check-in / Check-out\n9️⃣ Transfer aeroporto\n🔟 Falar com atendimento humano\n\nÉ só responder com o número ou escrever o assunto. Sempre que precisar, estou por aqui! 🌴`;
+const CONFIRMATION_TTL_MS = 10 * 60 * 1000;
+const pendingConfirmations = new Map();
+
+const MENU_RESPONSE = `Olá! Seja muito bem-vindo(a) à TorresGuest 😊
+
+Estou aqui para te ajudar com tudo da sua hospedagem. Escolha uma opção ou digite o tema direto:
+
+1️⃣ Wi-Fi
+2️⃣ Café da manhã
+3️⃣ Piscina e academia
+4️⃣ Estacionamento
+5️⃣ Snacks no apartamento
+6️⃣ Troca de toalhas
+7️⃣ Restaurante
+8️⃣ Check-in / Check-out
+9️⃣ Transfer aeroporto
+🔟 Falar com atendimento humano
+1️⃣1️⃣ Confirmar minha reserva
+
+É só responder com o número ou escrever o assunto. Sempre que precisar, estou por aqui! 🌴`;
 
 const HUMAN_ESCALATION_RESPONSE = `Para qualquer outra dúvida, nosso concierge humano atende nos WhatsApps ${HUMAN_NUMBER_PRIMARY} e ${HUMAN_NUMBER_SECONDARY}. É só chamar que cuidamos de você 24/7. 😊`;
 
-const WIFI_RESPONSE = `Acesso ao Wi-Fi\nConecte-se à rede do hotel e, ao abrir o portal Captiva, informe Nome + CPF (os mesmos do check-in).\nSe tiver qualquer dificuldade, me chama aqui que eu ajudo. 🌴`;
+const CONFIRMATION_PROMPT = `Claro! Me envia o código da sua reserva (ex.: IC09J) ou os dados completos para eu confirmar no sistema.`;
 
-const BREAKFAST_RESPONSE = `☕ Café da Manhã\nIncluso na sua reserva, servido no restaurante do lobby (em frente à recepção).\n🕒 Todos os dias, das 06h30 às 10h00.\nAproveite para começar o dia muito bem! 🌴`;
+const WIFI_RESPONSE = `Acesso ao Wi-Fi
+Conecte-se à rede do hotel e, ao abrir o portal Captiva, informe Nome + CPF (os mesmos do check-in).
+Se tiver qualquer dificuldade, me chama aqui que eu ajudo. 🌴`;
 
-const POOL_RESPONSE = `🏊‍♀️ Piscina & Academia\nA infraestrutura do hotel fica disponível todos os dias, das 08h00 às 21h00.\nAproveite a piscina para relaxar e a academia para manter a rotina! 🌴`;
+const BREAKFAST_RESPONSE = `☕ Café da Manhã
+Incluso na sua reserva, servido no restaurante do lobby (em frente à recepção).
+🕒 Todos os dias, das 06h30 às 10h00.
+Aproveite para começar o dia muito bem! 🌴`;
 
-const PARKING_RESPONSE = `🚗 Estacionamento\nO estacionamento é dentro do prédio, com manobrista.\nBasta informar que está hospedado em flat do condomínio.\n✔️ Sem custo adicional para hóspedes. Qualquer dúvida, me avisa! 🌴`;
+const POOL_RESPONSE = `🏊‍♀️ Piscina & Academia
+A infraestrutura do hotel fica disponível todos os dias, das 08h00 às 21h00.
+Aproveite a piscina para relaxar e a academia para manter a rotina! 🌴`;
 
-const SNACKS_RESPONSE = `🍫 Snacks e Conveniência\nDeixamos snacks no apartamento para sua comodidade.\n💳 Pagamento via PIX 62.169.624/0001-94.\n📋 A tabela está na bancada; se preferir, te envio aqui.\nCurta com vontade! 🌴`;
+const PARKING_RESPONSE = `🚗 Estacionamento
+O estacionamento é dentro do prédio, com manobrista.
+Basta informar que está hospedado em flat do condomínio.
+✔️ Sem custo adicional para hóspedes. Qualquer dúvida, me avisa! 🌴`;
 
-const TOWELS_RESPONSE = `🧺 Troca de Toalhas\nPara estadias acima de dois dias, fazemos a troca a cada 48h.\nSe precisar antes, é só me avisar que agilizo com a governança. 🌴`;
+const SNACKS_RESPONSE = `🍫 Snacks e Conveniência
+Deixamos snacks no apartamento para sua comodidade.
+💳 Pagamento via PIX 62.169.624/0001-94.
+📋 A tabela está na bancada; se preferir, te envio aqui.
+Curta com vontade! 🌴`;
 
-const RESTAURANT_RESPONSE = `🍽️ Restaurante do Hotel\nO restaurante no lobby oferece refeições à la carte ao longo do dia.\nPerfeito para quem quer comer bem sem sair do prédio. Se quiser sugestões, me chama! 🌴`;
+const TOWELS_RESPONSE = `🧺 Troca de Toalhas
+Para estadias acima de dois dias, fazemos a troca a cada 48h.
+Se precisar antes, é só me avisar que agilizo com a governança. 🌴`;
 
-const CHECKIN_RESPONSE = `🕐 Check-in & Check-out\nCheck-in: a partir das 14h\nCheck-out: até 12h\nA recepção funciona 24h com equipe de segurança para te receber em qualquer horário. 🌴`;
+const RESTAURANT_RESPONSE = `🍽️ Restaurante do Hotel
+O restaurante no lobby oferece refeições à la carte ao longo do dia.
+Perfeito para quem quer comer bem sem sair do prédio. Se quiser sugestões, me chama! 🌴`;
 
-const SECURITY_RESPONSE = `🔐 Segurança & Recepção\nContamos com recepção 24h, controle de acesso e equipe no local o tempo todo.\nPode chegar tranquilo(a), estamos sempre por perto. 🌴`;
+const CHECKIN_RESPONSE = `🕐 Check-in & Check-out
+Check-in: a partir das 14h
+Check-out: até 12h
+A recepção funciona 24h com equipe de segurança para te receber em qualquer horário. 🌴`;
 
-const TRANSFER_RESPONSE = `✈️ Transfer Aeroporto\nOferecemos apoio com transfer sob demanda.\nMe avise seu voo e horário que conecto você direto com nossa concierge no ${HUMAN_NUMBER_PRIMARY} ou ${HUMAN_NUMBER_SECONDARY} para finalizar os detalhes. 🌴`;
+const SECURITY_RESPONSE = `🔐 Segurança & Recepção
+Contamos com recepção 24h, controle de acesso e equipe no local o tempo todo.
+Pode chegar tranquilo(a), estamos sempre por perto. 🌴`;
 
-const LOCATION_RESPONSE = `📍 Diferenciais TorresGuest\n• Flats dentro de um hotel completo (piscina, academia, restaurante)\n• Localização excelente em Santos/SP\n• Atendimento próximo e humanizado, estilo concierge\nIdeal para lazer ou trabalho. Precisa de algo específico? Só chamar! 🌴`;
+const TRANSFER_RESPONSE = `✈️ Transfer Aeroporto
+Oferecemos apoio com transfer sob demanda.
+Me avise seu voo e horário que conecto você direto com nossa concierge no ${HUMAN_NUMBER_PRIMARY} ou ${HUMAN_NUMBER_SECONDARY} para finalizar os detalhes. 🌴`;
 
-const LONG_STAY_RESPONSE = `💰 Estadias longas\nTemos condições especiais para períodos estendidos.\nMe conta quantas noites e datas que converso com a equipe no ${HUMAN_NUMBER_PRIMARY}/${HUMAN_NUMBER_SECONDARY} e já retorno com a proposta. 🌴`;
+const LOCATION_RESPONSE = `📍 Diferenciais TorresGuest
+• Flats dentro de um hotel completo (piscina, academia, restaurante)
+• Localização excelente em Santos/SP
+• Atendimento próximo e humanizado, estilo concierge
+Ideal para lazer ou trabalho. Precisa de algo específico? Só chamar! 🌴`;
 
-const CLEANING_RESPONSE = `🧹 Limpeza / Governança\nA limpeza é realizada pela equipe do hotel.\nAvise com 24h de antecedência o melhor horário e eu agendo pra você. 🌴`;
+const LONG_STAY_RESPONSE = `💰 Estadias longas
+Temos condições especiais para períodos estendidos.
+Me conta quantas noites e datas que converso com a equipe no ${HUMAN_NUMBER_PRIMARY}/${HUMAN_NUMBER_SECONDARY} e já retorno com a proposta. 🌴`;
 
-const INTERNET_RESPONSE = `📡 Internet\nO Wi-Fi do hotel é fibra, ideal para trabalho remoto e streaming.\nSe notar qualquer instabilidade, me chama que aciono o time técnico na hora. 🌴`;
+const CLEANING_RESPONSE = `🧹 Limpeza / Governança
+A limpeza é realizada pela equipe do hotel.
+Avise com 24h de antecedência o melhor horário e eu agendo pra você. 🌴`;
 
-const LUGGAGE_RESPONSE = `🧳 Guarda de malas\nPrecisando deixar bagagem antes do check-in ou depois do check-out?\nOrganizo com a recepção conforme disponibilidade. Me informe horários que já deixo alinhado. 🌴`;
+const INTERNET_RESPONSE = `📡 Internet
+O Wi-Fi do hotel é fibra, ideal para trabalho remoto e streaming.
+Se notar qualquer instabilidade, me chama que aciono o time técnico na hora. 🌴`;
+
+const LUGGAGE_RESPONSE = `🧳 Guarda de malas
+Precisando deixar bagagem antes do check-in ou depois do check-out?
+Organizo com a recepção conforme disponibilidade. Me informe horários que já deixo alinhado. 🌴`;
+
+const RESERVATION_NOT_FOUND = (code) => `Ainda não localizei a reserva ${code}. Você consegue confirmar se o código está correto ou me enviar o print do canal? Se preferir, nosso atendimento humano resolve rapidinho nos números ${HUMAN_NUMBER_PRIMARY} e ${HUMAN_NUMBER_SECONDARY}.`;
 
 const app = express();
 app.use(bodyParser.json());
@@ -88,6 +153,11 @@ async function handleIncoming(payload) {
 
         const normalized = normalizeText(body);
 
+        const confirmationHandled = await maybeHandleReservationConfirmation({ rawText: body, normalizedText: normalized, from });
+        if (confirmationHandled) {
+          continue;
+        }
+
         if (shouldSendMenu(normalized)) {
           await sendWhatsAppText(from, MENU_RESPONSE);
         } else if (shouldSendWifi(normalized)) {
@@ -123,7 +193,9 @@ async function handleIncoming(payload) {
         } else if (shouldSendHuman(normalized)) {
           await sendWhatsAppText(from, HUMAN_ESCALATION_RESPONSE);
         } else {
-          await sendWhatsAppText(from, `${HUMAN_ESCALATION_RESPONSE}\n\nSe quiser voltar ao menu, é só digitar "menu".`);
+          await sendWhatsAppText(from, `${HUMAN_ESCALATION_RESPONSE}
+
+Se quiser voltar ao menu, é só digitar "menu".`);
         }
       }
     }
@@ -145,7 +217,7 @@ function isNumericSelection(text, ...options) {
 }
 
 function shouldSendMenu(text) {
-  return isNumericSelection(text, '0') || /\b(menu|opcao|opcoes|ajuda|inicio|start|comecar)\b/.test(text);
+  return isNumericSelection(text, '0') || /(menu|opcao|opcoes|ajuda|inicio|start|comecar)/.test(text);
 }
 
 function shouldSendWifi(text) {
@@ -177,7 +249,7 @@ function shouldSendRestaurant(text) {
 }
 
 function shouldSendCheckin(text) {
-  return isNumericSelection(text, '8') || /(checkin|check-in|checkout|check-out|entrada|saida|saída|horario)/.test(text);
+  return isNumericSelection(text, '8') || /(checkin|check-in|checkout|check-out|entrada|saida|saída|horario|horário)/.test(text);
 }
 
 function shouldSendTransfer(text) {
@@ -210,6 +282,143 @@ function shouldSendInternet(text) {
 
 function shouldSendLuggage(text) {
   return /(mala|bagagem|guardar|luggage|depositar)/.test(text);
+}
+
+function shouldHandleReservationConfirmation(text) {
+  return isNumericSelection(text, '11') || /(confirmar|confirmacao|status|codigo).*reserva/.test(text);
+}
+
+function cleanupPendingConfirmations() {
+  const now = Date.now();
+  for (const [key, ts] of pendingConfirmations.entries()) {
+    if (now - ts > CONFIRMATION_TTL_MS) {
+      pendingConfirmations.delete(key);
+    }
+  }
+}
+
+function rememberPendingConfirmation(phone) {
+  pendingConfirmations.set(phone, Date.now());
+}
+
+function isAwaitingCode(phone) {
+  cleanupPendingConfirmations();
+  return pendingConfirmations.has(phone);
+}
+
+function extractReservationCode(rawText) {
+  if (!rawText) return null;
+  const tokens = rawText.toUpperCase().replace(/[^A-Z0-9]/g, ' ').split(' ');
+  for (const token of tokens) {
+    if (token.length >= 4 && token.length <= 8 && /[A-Z]/.test(token) && /[0-9]/.test(token)) {
+      return token;
+    }
+  }
+  return null;
+}
+
+async function maybeHandleReservationConfirmation({ rawText, normalizedText, from }) {
+  const expectingCode = isAwaitingCode(from);
+  const wantsConfirmation = expectingCode || shouldHandleReservationConfirmation(normalizedText);
+  if (!wantsConfirmation) {
+    return false;
+  }
+
+  const code = extractReservationCode(rawText);
+  if (!code) {
+    rememberPendingConfirmation(from);
+    await sendWhatsAppText(from, CONFIRMATION_PROMPT);
+    return true;
+  }
+
+  const reservation = await fetchReservationByCode(code);
+  if (reservation) {
+    pendingConfirmations.delete(from);
+    await sendWhatsAppText(from, formatReservationMessage(reservation));
+  } else {
+    rememberPendingConfirmation(from);
+    await sendWhatsAppText(from, RESERVATION_NOT_FOUND(code));
+  }
+  return true;
+}
+
+async function fetchReservationByCode(code) {
+  if (!STAYS_USERNAME || !STAYS_PASSWORD) {
+    console.error('Missing Stays credentials');
+    return null;
+  }
+
+  const auth = Buffer.from(`${STAYS_USERNAME}:${STAYS_PASSWORD}`).toString('base64');
+  const url = `${STAYS_BASE_URL.replace(/\/$/, '')}/booking/reservations/${encodeURIComponent(code)}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Failed to fetch reservation', response.status, text);
+      return null;
+    }
+
+    const data = await response.json();
+    const reservation = data?.reservation || data;
+    if (reservation && reservation.id) {
+      return reservation;
+    }
+  } catch (err) {
+    console.error('Error fetching reservation', err);
+  }
+  return null;
+}
+
+function formatReservationMessage(reservation) {
+  const guest = reservation.client?.name || reservation.guest_name || 'hóspede';
+  const listing = reservation.listing?.internalName || reservation.listing?.id || '';
+  const partner = reservation.partnerName || reservation.partner?.name || 'canal direto';
+  const status = formatReservationStatus(reservation.type);
+  const checkin = formatDateBRT(reservation.checkInDate || reservation.checkin);
+  const checkout = formatDateBRT(reservation.checkOutDate || reservation.checkout);
+  const guests = reservation.guestTotalCount || reservation.guests || reservation.persons || 1;
+  const nights = reservation.nightCount || reservation.nights || '';
+
+  const parts = [
+    `Confirmei aqui: a reserva ${reservation.id} (${partner}) está ${status}.`,
+    checkin && checkout ? `Período: ${checkin} até ${checkout}${nights ? ` · ${nights} noite(s)` : ''}.` : '',
+    guests ? `${guests} hóspede(s)${listing ? ` · Flat ${listing}` : ''}.` : listing ? `Flat ${listing}.` : '',
+    'Qualquer ajuste, me avisa que eu cuido por aqui. 🌴',
+  ].filter(Boolean);
+
+  return parts.join('
+');
+}
+
+function formatReservationStatus(type) {
+  const mapping = {
+    booked: 'confirmada ✅',
+    reserved: 'pendente de confirmação',
+    contract: 'em contrato',
+    canceled: 'cancelada ❌',
+    maintenance: 'bloqueada para manutenção',
+    blocked: 'bloqueada',
+  };
+  return mapping[type] || 'em andamento';
+}
+
+function formatDateBRT(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
 async function sendWhatsAppText(to, body) {
