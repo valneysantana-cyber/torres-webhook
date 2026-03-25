@@ -398,8 +398,7 @@ function formatReservationMessage(reservation) {
     'Qualquer ajuste, me avisa que eu cuido por aqui. 🌴',
   ].filter(Boolean);
 
-  return parts.join('
-');
+  return parts.join('\n');
 }
 
 function formatReservationStatus(type) {
