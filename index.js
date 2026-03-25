@@ -106,6 +106,262 @@ const LUGGAGE_RESPONSE = `🧳 Guarda de malas
 Precisando deixar bagagem antes do check-in ou depois do check-out?
 Organizo com a recepção conforme disponibilidade. Me informe horários que já deixo alinhado. 🌴`;
 
+
+const FAQ_ENTRIES = [
+  {
+    patterns: [/(onde.*localizad|qual.*bairro|localizacao|onde voces estao|onde fica)/],
+    response: 'Estamos no bairro de Perdizes, uma das regiões mais valorizadas e estratégicas de São Paulo. 😊',
+  },
+  {
+    patterns: [/(perto.*allianz|allianz.*perto|allianz parque)/],
+    response: 'Sim! Ficamos a poucos minutos do Allianz Parque, perfeito para shows e jogos. ⚽🎤',
+  },
+  {
+    patterns: [/(ir a pe|caminha|andar).*allianz/],
+    response: 'Dá para ir a pé até o Allianz Parque em cerca de 10 a 15 minutos, dependendo do ritmo. 🚶‍♂️',
+  },
+  {
+    patterns: [/(regiao segura|area segura|seguro ai|seguro o bairro)/],
+    response: 'Perdizes é um bairro residencial com boa segurança e movimento constante. Ainda assim, recomendamos os cuidados usuais de cidade grande.',
+  },
+  {
+    patterns: [/(mercado|supermercado|padaria).*perto/],
+    response: 'Temos mercados, padarias e farmácias muito próximos — dá pra resolver tudo a pé.',
+  },
+  {
+    patterns: [/(restaurante|gastronomia).*perto/],
+    response: 'Sim! A região é rica em restaurantes e bares, desde cafés charmosos até casas premiadas. 🍽️',
+  },
+  {
+    patterns: [/(shopping|bourbon)/],
+    response: 'O Shopping Bourbon fica pertinho e é ótima opção para compras, cinema e alimentação.',
+  },
+  {
+    patterns: [/(puc|universidade)/],
+    response: 'Estamos bem próximos da PUC-SP, perfeito para quem vem a eventos ou graduações. 🎓',
+  },
+  {
+    patterns: [/(?:((?:uber|app).*facil)|facil pedir carro)/],
+    response: 'O acesso a Uber e demais apps é bem rápido por aqui. 🚗',
+  },
+  {
+    patterns: [/(longe).*centro/],
+    response: 'Estamos a poucos minutos do centro — o acesso é rápido tanto de carro quanto de transporte público.',
+  },
+  {
+    patterns: [/(avenida paulista|paulista)/],
+    response: 'A Avenida Paulista fica a cerca de 10–15 minutos de carro, super prático.',
+  },
+  {
+    patterns: [/(farmacia)/],
+    response: 'Tem farmácias 24h e drograrias de rede muito perto. 💊',
+  },
+  {
+    patterns: [/(padaria)/],
+    response: 'Padarias ótimas na região — impossível não querer um café ali. ☕',
+  },
+  {
+    patterns: [/(area movimentada|rua movimentada)/],
+    response: 'É uma área movimentada e residencial, com bom fluxo mas mantendo tranquilidade.',
+  },
+  {
+    patterns: [/(bares|barzinho)/],
+    response: 'Sim, temos bares e pubs próximos para diversos estilos. 🍻',
+  },
+  {
+    patterns: [/(transporte publico|onibus|metro)/],
+    response: 'Temos acesso fácil a ônibus e metrô, facilitando deslocamentos pela cidade.',
+  },
+  {
+    patterns: [/(?:aeroporto.*proximo|qual aeroporto)/],
+    response: 'O aeroporto mais próximo é Congonhas, ideal para quem chega por voos domésticos. ✈️',
+  },
+  {
+    patterns: [/(tempo).*aeroporto/],
+    response: 'Congonhas fica a 20–40 minutos, variando conforme o trânsito.',
+  },
+  {
+    patterns: [/(ciclovia|bike)/],
+    response: 'Sim, há ciclovias e ciclofaixas próximas — o bairro é ótimo pra quem pedala. 🚴',
+  },
+  {
+    patterns: [/(turismo|pontos turisticos)/],
+    response: 'Perdizes é uma base excelente pra explorar São Paulo: fica perto de polos culturais, gastronômicos e de compras.',
+  },
+  {
+    patterns: [/(?:hospede.*show|allianz parque|eventos)/],
+    response: 'Recebemos muitos hóspedes que vêm para shows e eventos — a localização é perfeita pra isso. 🎶',
+  },
+  {
+    patterns: [/(?:barulho.*show|movimento.*evento)/],
+    response: 'Em dias de jogos ou shows a região fica mais movimentada, mas nada que comprometa o descanso dentro do flat.',
+  },
+  {
+    patterns: [/(avisam).*eventos/],
+    response: 'Sempre que possível avisamos sobre eventos na região pra você se organizar.',
+  },
+  {
+    patterns: [/(?:ver.*estadio|vista.*allianz)/],
+    response: 'Algumas unidades têm vista parcial do Allianz Parque — consulte a disponibilidade que eu verifico pra você. 👀',
+  },
+  {
+    patterns: [/(restaurante).*estadio/],
+    response: 'Os arredores do Allianz têm várias opções de bares e restaurantes pra antes ou depois dos eventos.',
+  },
+  {
+    patterns: [/(cheio|lotado).*evento/],
+    response: 'Nos dias de evento a região fica cheia, então recomendamos sair com antecedência.',
+  },
+  {
+    patterns: [/(seguro).*voltar.*noite/],
+    response: 'É seguro voltar, mas em dias de grande movimento sugerimos usar apps de transporte pra mais conforto.',
+  },
+  {
+    patterns: [/(vale a pena|bom lugar).*show/],
+    response: 'Vale muito! Você fica pertinho do Allianz e ainda conta com toda estrutura do flat/hotel.',
+  },
+  {
+    patterns: [/(estacionamento).*jogo/],
+    response: 'Mesmo em dias de jogos, mantemos o estacionamento com manobrista dentro do prédio.',
+  },
+  {
+    patterns: [/(evitar).*transito/],
+    response: 'Saindo antes dos horários de pico você evita trânsito pesado; posso te ajudar com dicas de trajeto.',
+  },
+  {
+    patterns: [/(hotel ou airbnb|eh hotel)/],
+    response: 'Somos flats particulares dentro de um hotel, unindo privacidade com toda a estrutura hoteleira. 😊',
+  },
+  {
+    patterns: [/(?:usar.*estrutura|piscina academia restaurante)/],
+    response: 'Os hóspedes podem usar toda a estrutura do hotel: piscina, academia, restaurante e serviços.',
+  },
+  {
+    patterns: [/(piscina)/],
+    response: 'Tem piscina das 08h às 21h para relaxar quando quiser. 🏊‍♀️',
+  },
+  {
+    patterns: [/(academia|gym)/],
+    response: 'Tem academia equipada aberta das 08h às 21h. 💪',
+  },
+  {
+    patterns: [/(cafe da manha)/],
+    response: 'O café da manhã está incluso e servido no restaurante do lobby, das 06h30 às 10h.',
+  },
+  {
+    patterns: [/(wifi|internet)/],
+    response: 'Temos Wi-Fi fibra com ótima estabilidade, ideal pra trabalho e streaming. 📶',
+  },
+  {
+    patterns: [/(ar condicionado|ar-condicionado|climatizado)/],
+    response: 'Todos os flats contam com ar-condicionado para seu conforto. ❄️',
+  },
+  {
+    patterns: [/(tv)/],
+    response: 'Tem TV com canais a cabo/streaming para você relaxar. 📺',
+  },
+  {
+    patterns: [/(limpeza|faxina)/],
+    response: 'A limpeza é feita pela governança do hotel; é só avisar com antecedência que agendamos.',
+  },
+  {
+    patterns: [/(recepcao|24h)/],
+    response: 'Temos recepção 24h pronta para apoiar em qualquer necessidade. 🛎️',
+  },
+  {
+    patterns: [/(elevador)/],
+    response: 'Sim, o prédio possui elevadores modernos e rápidos.',
+  },
+  {
+    patterns: [/(vista)/],
+    response: 'Algumas unidades têm vista linda da cidade; me fala sua preferência que escolho a melhor opção.',
+  },
+  {
+    patterns: [/(secador)/],
+    response: 'Disponibilizamos secador — se não estiver no flat é só solicitar que levamos.',
+  },
+  {
+    patterns: [/(ferro)/],
+    response: 'Podemos providenciar ferro e tábua sob demanda, sem custo.',
+  },
+  {
+    patterns: [/(cozinha|cooktop|micro-ondas|microondas)/],
+    response: 'Os flats têm mini cozinha funcional com itens básicos para refeições rápidas.',
+  },
+  {
+    patterns: [/(frigobar|geladeira)/],
+    response: 'Sim, cada unidade conta com frigobar abastecido.',
+  },
+  {
+    patterns: [/(snack|snacks)/],
+    response: 'Deixamos snacks no apartamento — se consumir, é só pagar via PIX 62.169.624/0001-94.',
+  },
+  {
+    patterns: [/(trabalho|home office|notebook)/],
+    response: 'Tem espaço confortável pra trabalhar, com internet rápida e tomadas acessíveis. 💻',
+  },
+  {
+    patterns: [/(silencioso|barulho)/],
+    response: 'O flat é silencioso; só em dias de grandes eventos pode haver mais movimento externo.',
+  },
+  {
+    patterns: [/(visita|receber pessoas)/],
+    response: 'Visitas são possíveis mediante aviso prévio para alinharmos com a recepção.',
+  },
+  {
+    patterns: [/(festa|eventos no apartamento)/],
+    response: 'Não permitimos festas no flat para garantir o conforto de todos os hóspedes. 🚫',
+  },
+  {
+    patterns: [/(fumar|cigarro)/],
+    response: 'Os flats são 100% não fumantes. Se precisar, temos áreas externas designadas.',
+  },
+  {
+    patterns: [/(pet|animal)/],
+    response: 'Pets podem ser aceitos mediante consulta — me avisa o porte e os dias pra eu confirmar. 🐾',
+  },
+  {
+    patterns: [/(lavanderia)/],
+    response: 'O hotel oferece serviço de lavanderia; posso ajudar a agendar.',
+  },
+  {
+    patterns: [/(room service|servico de quarto)/],
+    response: 'O restaurante atende o flat via room service em horários definidos.',
+  },
+  {
+    patterns: [/(check-in facil|checkin facil)/],
+    response: 'O check-in é simples: nos avise o horário e deixamos tudo pronto na recepção.',
+  },
+  {
+    patterns: [/(suporte durante a estadia|ajuda durante a estadia)/],
+    response: 'Ficamos disponíveis 24/7 no WhatsApp pra resolver qualquer necessidade durante a estadia. 😊',
+  },
+  {
+    patterns: [/(pedir comida|delivery)/],
+    response: 'Pode pedir delivery sem problema; avisamos a recepção pra autorizar a entrega.',
+  },
+  {
+    patterns: [/(acessibilidade|cadeirante)/],
+    response: 'Temos unidades com recursos de acessibilidade — me diz o que precisa que seleciono a melhor opção.',
+  },
+  {
+    patterns: [/(blackout|cortina)/],
+    response: 'As unidades têm cortinas blackout para garantir noites bem escuras.',
+  },
+  {
+    patterns: [/(tomada|energia)/],
+    response: 'Há diversas tomadas próximas da cama e da estação de trabalho.',
+  },
+  {
+    patterns: [/(casal|romantico)/],
+    response: 'Os flats acomodam casais com muito conforto — posso preparar mimos especiais se quiser.',
+  },
+  {
+    patterns: [/(confortavel|conforto)/],
+    response: 'Sim, montamos tudo para ser aconchegante e prático, com padrão de hotel boutique. 😊',
+  },
+];
+
 const RESERVATION_NOT_FOUND = (code) => `Ainda não localizei a reserva ${code}. Você consegue confirmar se o código está correto ou me enviar o print do canal? Se preferir, nosso atendimento humano resolve rapidinho nos números ${HUMAN_NUMBER_PRIMARY} e ${HUMAN_NUMBER_SECONDARY}.`;
 
 const app = express();
@@ -152,6 +408,7 @@ async function handleIncoming(payload) {
         if (!from) continue;
 
         const normalized = normalizeText(body);
+        const faqResponse = getFaqResponse(normalized);
 
         const confirmationHandled = await maybeHandleReservationConfirmation({ rawText: body, normalizedText: normalized, from });
         if (confirmationHandled) {
@@ -190,12 +447,12 @@ async function handleIncoming(payload) {
           await sendWhatsAppText(from, INTERNET_RESPONSE);
         } else if (shouldSendLuggage(normalized)) {
           await sendWhatsAppText(from, LUGGAGE_RESPONSE);
+        } else if (faqResponse) {
+          await sendWhatsAppText(from, faqResponse);
         } else if (shouldSendHuman(normalized)) {
           await sendWhatsAppText(from, HUMAN_ESCALATION_RESPONSE);
         } else {
-          await sendWhatsAppText(from, `${HUMAN_ESCALATION_RESPONSE}
-
-Se quiser voltar ao menu, é só digitar "menu".`);
+          await sendWhatsAppText(from, `${HUMAN_ESCALATION_RESPONSE}\n\nSe quiser voltar ao menu, é só digitar "menu".`);
         }
       }
     }
@@ -282,6 +539,15 @@ function shouldSendInternet(text) {
 
 function shouldSendLuggage(text) {
   return /(mala|bagagem|guardar|luggage|depositar)/.test(text);
+}
+
+function getFaqResponse(text) {
+  for (const entry of FAQ_ENTRIES) {
+    if (entry.patterns.some((regex) => regex.test(text))) {
+      return entry.response;
+    }
+  }
+  return null;
 }
 
 function shouldHandleReservationConfirmation(text) {
