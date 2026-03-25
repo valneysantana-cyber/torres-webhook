@@ -410,6 +410,12 @@ async function handleIncoming(payload) {
         const normalized = normalizeText(body);
         const faqResponse = getFaqResponse(normalized);
 
+        if (shouldSendMenu(normalized)) {
+          await sendWhatsAppText(from, MENU_RESPONSE);
+          pendingConfirmations.delete(from);
+          continue;
+        }
+
         const confirmationHandled = await maybeHandleReservationConfirmation({ rawText: body, normalizedText: normalized, from });
         if (confirmationHandled) {
           continue;
