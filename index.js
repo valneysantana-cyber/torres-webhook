@@ -656,7 +656,7 @@ async function fetchReservationByCode(code) {
 }
 
 function formatReservationMessage(reservation) {
-  const guest = reservation.client?.name || reservation.guest_name || reservation.guests?.list?.[0]?.name || reservation.guests?.[0]?.name || 'hóspede';
+  const guest = resolveGuestName(reservation);
   const listing = reservation.listing?.internalName || reservation.listing?.id || '';
   const partner = reservation.partnerName || reservation.partner?.name || 'canal direto';
   const status = formatReservationStatus(reservation.type);
@@ -667,12 +667,31 @@ function formatReservationMessage(reservation) {
 
   const parts = [
     `Confirmei aqui: a reserva ${reservation.id} (${partner}) está ${status}.`,
+    guest ? `Hóspede: ${guest}.` : '',
     checkin && checkout ? `Período: ${checkin} até ${checkout}${nights ? ` · ${nights} noite(s)` : ''}.` : '',
     guests ? `${guests} hóspede(s)${listing ? ` · Flat ${listing}` : ''}.` : listing ? `Flat ${listing}.` : '',
     'Qualquer ajuste, me avisa que eu cuido por aqui. 🌴',
   ].filter(Boolean);
 
   return parts.join('\n');
+}
+
+function resolveGuestName(reservation) {
+  if (reservation.client?.name) return reservation.client.name;
+  if (reservation.guest_name) return reservation.guest_name;
+  const lists = [
+    reservation.guestsDetails?.list,
+    reservation.guests?.list,
+    Array.isArray(reservation.guests) ? reservation.guests : null,
+  ];
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    const primary = list.find((item) => item?.primary) || list.find((item) => item?.name && !item.name.toLowerCase().startsWith('adult_')) || list[0];
+    if (primary?.name) {
+      return primary.name;
+    }
+  }
+  return reservation.contact?.name || null;
 }
 
 function formatReservationStatus(type) {
