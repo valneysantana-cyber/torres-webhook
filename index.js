@@ -412,6 +412,7 @@ async function handleIncoming(payload) {
         const faqResponse = getFaqResponse(normalized);
 
         if (shouldSendMenu(normalized)) {
+          console.log('[menu] sending menu response');
           await sendWhatsAppText(from, MENU_RESPONSE);
           pendingConfirmations.delete(from);
           continue;
@@ -655,7 +656,7 @@ async function fetchReservationByCode(code) {
 }
 
 function formatReservationMessage(reservation) {
-  const guest = reservation.client?.name || reservation.guest_name || 'hóspede';
+  const guest = reservation.client?.name || reservation.guest_name || reservation.guests?.list?.[0]?.name || reservation.guests?.[0]?.name || 'hóspede';
   const listing = reservation.listing?.internalName || reservation.listing?.id || '';
   const partner = reservation.partnerName || reservation.partner?.name || 'canal direto';
   const status = formatReservationStatus(reservation.type);
