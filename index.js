@@ -408,6 +408,7 @@ async function handleIncoming(payload) {
         if (!from) continue;
 
         const normalized = normalizeText(body);
+        console.log('[incoming]', { from, body, normalized });
         const faqResponse = getFaqResponse(normalized);
 
         if (shouldSendMenu(normalized)) {
@@ -687,6 +688,10 @@ function formatReservationStatus(type) {
 
 function formatDateBRT(dateStr) {
   if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  }
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return dateStr;
   return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
