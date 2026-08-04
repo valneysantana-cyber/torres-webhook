@@ -274,30 +274,47 @@ function guardArrivalHallucination(text, tenant) {
   if (!text) return text;
   const norm = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const t = norm(text);
+  // Endereço oficial: SÓ do tenant. O default Torres vale apenas para o próprio
+  // torres (tenant ausente = caminhos legados torres). Para outro tenant SEM
+  // settings.address, o guard NUNCA pode "chutar" o endereço da Torres (auditoria
+  // 04/08 GAP-5: o guard viraria a fonte da alucinação em tenants aiFirst).
+  const isTorres = !tenant || !tenant.tenantId || tenant.tenantId === 'torres';
   const officialAddr = (tenant && tenant.settings && (tenant.settings.address_full || tenant.settings.address)) ||
-    'Rua Monte Alegre, 835 - Perdizes, São Paulo - SP';
-  const om = norm(officialAddr).match(/(?:rua|av(?:enida)?|alameda|travessa|estrada)\.?\s+([a-z0-9 .']{3,40}?),?\s*\d/);
+    (isTorres ? 'Rua Monte Alegre, 835 - Perdizes, São Paulo - SP' : null);
+  const om = officialAddr ? norm(officialAddr).match(/(?:rua|av(?:enida)?|alameda|travessa|estrada)\.?\s+([a-z0-9 .']{3,40}?),?\s*\d/) : null;
   const officialStreetWord = om ? om[1].trim().split(/\s+/).filter(w => w.length > 2)[0] : null;
 
   const fakeEntry = /keybox|key box|lockbox|caixinha de chave|cofre de chave|codigo (?:da |de |para (?:abrir )?a )?(?:porta|fechadura|keybox|entrada)|senha da (?:porta|fechadura)|porteiro do predio/.test(t);
+  // Wi-Fi inventado (auditoria R2): rede/senha específicas. Torres real = portal
+  // Captiva sem senha → resposta legítima cita "captiva" e passa.
+  const fakeWifi = !t.includes('captiva') && /\bssid\b|senha d[oa] (?:wi.?fi|rede|internet)|rede (?:do )?wi.?fi[^.\n]{0,30}senha/.test(t);
 
+  // Sem rua oficial conhecida NÃO dá pra julgar ruas → não bloquear por endereço
+  // (auditoria R7: evita falso-positivo que trocaria resposta boa por endereço errado).
   let fakeStreet = false;
-  const re = /(?:rua|av(?:enida)?|alameda|travessa|estrada)\.?\s+([a-z0-9 .']{3,40}?),?\s*\d{1,5}/g;
-  let m;
-  while ((m = re.exec(t))) {
-    const streetWords = m[1].trim().split(/\s+/).filter(w => w.length > 2);
-    const matchesOfficial = officialStreetWord && streetWords.some(w => w === officialStreetWord);
-    if (!matchesOfficial) { fakeStreet = true; break; }
+  if (officialStreetWord) {
+    const re = /(?:rua|av(?:enida)?|alameda|travessa|estrada)\.?\s+([a-z0-9 .']{3,40}?),?\s*\d{1,5}/g;
+    let m;
+    while ((m = re.exec(t))) {
+      const streetWords = m[1].trim().split(/\s+/).filter(w => w.length > 2);
+      const matchesOfficial = streetWords.some(w => w === officialStreetWord);
+      if (!matchesOfficial) { fakeStreet = true; break; }
+    }
   }
   // Endereço "estranho" só bloqueia em contexto de CHEGADA (rotulado, com maps, ou com nº de ap.)
   // — menção legítima a outras ruas (restaurantes, passeios) continua permitida.
   const arrivalContext = /endere[c]o\s*[:*]|maps\.app\.goo|maps\.google|goo\.gl\/maps|\bap\.?\s*\d{1,4}\b|como entrar|check.?in|chegada|chegar no (?:predio|hotel|flat)/.test(t);
 
-  if (fakeEntry || (fakeStreet && arrivalContext)) {
-    console.error('[guard-arrival] RESPOSTA BLOQUEADA (endereço/instruções de chegada alucinados):', text.slice(0, 160));
-    return 'O endereço certinho é: *' + officialAddr + '*.\n\n' +
-      'A entrada é pela recepção do hotel, que funciona 24h: é só apresentar um documento com foto e informar o nome da reserva — eles entregam o cartão do quarto na hora.\n\n' +
-      'Qualquer dúvida na chegada, a Sofia te ajuda em tempo real: wa.me/5513996155505 📲';
+  if (fakeEntry || fakeWifi || (fakeStreet && arrivalContext)) {
+    console.error('[guard-arrival] RESPOSTA BLOQUEADA (dados de chegada/acesso alucinados):', text.slice(0, 160));
+    if (officialAddr) {
+      return 'O endereço certinho é: *' + officialAddr + '*.\n\n' +
+        'A entrada é pela recepção do hotel, que funciona 24h: é só apresentar um documento com foto e informar o nome da reserva — eles entregam o cartão do quarto na hora.' +
+        (isTorres ? ' O Wi-Fi é pela rede do hotel: conecta e informa Nome + CPF na página que abrir — sem senha.' : '') + '\n\n' +
+        'Qualquer dúvida na chegada, a Sofia te ajuda em tempo real: wa.me/5513996155505 📲';
+    }
+    // Tenant sem endereço cadastrado: NUNCA inventar — escalar pro humano.
+    return 'Pra te passar o endereço e as instruções de chegada certinhos, vou confirmar com nosso atendimento humano — a Sofia te responde rapidinho: wa.me/5513996155505 📲';
   }
   return text;
 }
@@ -465,4 +482,4 @@ async function synthesizeSpeechBuffer(text) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-module.exports = { getChatGptFallbackReply, transcribeAudioBuffer, synthesizeSpeechBuffer };
+module.exports = { getChatGptFallbackReply, transcribeAudioBuffer, synthesizeSpeechBuffer, guardArrivalHallucination, maskPII };

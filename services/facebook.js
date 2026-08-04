@@ -19,6 +19,7 @@
  */
 
 const { OPENAI_API_KEY } = require('../config');
+const { guardArrivalHallucination, maskPII } = require('./openai');
 
 const FB_PAGE_ACCESS_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
 const FB_PAGE_ID           = process.env.FB_PAGE_ID;
@@ -133,7 +134,7 @@ async function handleMessengerWebhook(body) {
         console.error('[facebook] Erro ao responder Messenger:', err.message);
         await sendMessengerMessage(senderId,
           'ð¨ OlÃ¡! Obrigado por entrar em contato com o TorresGuest. ' +
-          'Para reservas e informaÃ§Ãµes rÃ¡pidas, nos chame no WhatsApp: +55 11 99907-3135'
+          'Para reservas e informaÃ§Ãµes rÃ¡pidas, nos chame no WhatsApp: +55 13 99615-5505'
         ).catch(() => {});
       }
     }
@@ -148,10 +149,13 @@ async function handleMessengerWebhook(body) {
  * Gera resposta de Messenger via GPT-4o-mini.
  */
 async function generateMessengerReply(userMessage, senderId) {
-  const systemPrompt = `VocÃª Ã© o assistente virtual do TorresGuest, hotel boutique em SÃ£o Paulo (SP), Brasil.
-Responda perguntas sobre reservas, localizaÃ§Ã£o, preÃ§os e comodidades de forma simpÃ¡tica e profissional.
-Para reservas ou dÃºvidas complexas, direcione para o WhatsApp: +55 11 99907-3135
-Respostas curtas (mÃ¡x 3 linhas), em portuguÃªs.`;
+  const systemPrompt = `Você é o assistente virtual da TorresGuest — flats particulares DENTRO do Hotel Transamerica Executive Perdizes, em São Paulo/SP (NÃO é "hotel boutique").
+Fatos fixos (use SOMENTE estes, NUNCA invente):
+- Endereço ÚNICO: Rua Monte Alegre, 835 - Perdizes, São Paulo/SP (mesma rua da PUC-SP). Check-in na recepção 24h do hotel: documento com foto + nome da reserva.
+- NÃO existe: outro endereço, código de porta, KeyBox, senha de fechadura, Wi-Fi com senha (o Wi-Fi é portal do hotel, Nome+CPF), telefone de porteiro.
+- Reservas, preços e qualquer dúvida específica: WhatsApp da Sofia +55 13 99615-5505 e site www.torresguest.com.br.
+⚠️ NUNCA invente endereços, números de telefone, códigos ou instruções de chegada. Se não souber, direcione para a Sofia.
+Respostas curtas (máx 3 linhas), simpáticas e profissionais, em português.`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -170,7 +174,7 @@ Respostas curtas (mÃ¡x 3 linhas), em portuguÃªs.`;
   });
   if (!res.ok) { const t = await res.text(); throw new Error(`[facebook] GPT Messenger reply falhou: ${t}`); }
   const data = await res.json();
-  return data.choices[0].message.content.trim();
+  return guardArrivalHallucination(maskPII(data.choices[0].message.content.trim()), null);
 }
 
 /**
@@ -203,7 +207,7 @@ Regras:
   });
   if (!res.ok) { const t = await res.text(); throw new Error(`[facebook] GPT FB caption falhou: ${t}`); }
   const data = await res.json();
-  return data.choices[0].message.content.trim();
+  return guardArrivalHallucination(maskPII(data.choices[0].message.content.trim()), null);
 }
 
 // ---------------------------------------------------------------------------

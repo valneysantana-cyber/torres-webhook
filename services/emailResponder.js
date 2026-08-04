@@ -22,6 +22,7 @@
 const nodemailer = require('nodemailer');
 const { normalizeText } = require('../utils/formatters');
 const { getChatGptFallbackReply } = require('../services/openai');
+const { fetchTenantById } = require('../services/tenant');
 const { sendWhatsAppText } = require('../services/whatsapp');
 const windowGuard = require('../services/windowGuard');
 
@@ -331,11 +332,18 @@ async function handleEmailResponse(otaData) {
         `acomodação ${otaData.reservation.accommodation || 'N/A'}, ` +
         `${otaData.reservation.numGuests || 1} hóspede(s).`
       : '';
+    // Auditoria 04/08 GAP-3: sem o tenant, o prompt/guard caíam no hardcode da
+    // Torres para QUALQUER tenant (endereço/contatos errados por e-mail e WhatsApp).
+    let emailTenant = null;
+    try {
+      emailTenant = await fetchTenantById(otaData.reservation?.tenantId || otaData.tenantId || 'torres');
+    } catch (e) { console.warn('[email] fetchTenantById falhou:', e.message); }
     response = await getChatGptFallbackReply(
       guestMessage + reservationContext,
       `email-${ota}`,
       [],
-      null
+      null,
+      emailTenant
     );
     matchedRule = 'gpt-fallback';
   }

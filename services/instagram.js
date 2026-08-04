@@ -18,6 +18,7 @@
  */
 
 const { OPENAI_API_KEY } = require('../config');
+const { guardArrivalHallucination, maskPII } = require('./openai');
 
 const IG_ACCESS_TOKEN        = process.env.IG_ACCESS_TOKEN;
 const IG_APP_ID              = process.env.IG_APP_ID || '1667526337778117';
@@ -149,7 +150,7 @@ async function handleInstagramWebhook(body) {
         await sendDM(senderId, reply);
       } catch (err) {
         console.error('[instagram] Erro ao responder DM:', err.message);
-        await sendDM(senderId, '👋 Olá! Obrigado por entrar em contato com o TorresGuest. Para informações e reservas, também pode nos chamar no WhatsApp: +55 11 99907-3135').catch(() => {});
+        await sendDM(senderId, '👋 Olá! Obrigado por entrar em contato com o TorresGuest. Para informações e reservas, também pode nos chamar no WhatsApp: +55 13 99615-5505').catch(() => {});
       }
     }
     for (const change of entry.changes || []) {
@@ -163,10 +164,13 @@ async function handleInstagramWebhook(body) {
 // ---------------------------------------------------------------------------
 /** Gera resposta de DM via GPT-4o-mini. */
 async function generateDMReply(userMessage, senderId) {
-  const systemPrompt = `Você é o assistente virtual do TorresGuest, um hotel boutique em São Paulo (SP), Brasil.
-Responda perguntas sobre reservas, localização, preços e comodidades de forma simpática e profissional.
-Se o hóspede quiser reservar ou tiver dúvidas complexas, direcione para o WhatsApp: +55 11 99907-3135
-Respostas devem ser curtas (máx 3 linhas) e em português.`;
+  const systemPrompt = `Você é o assistente virtual da TorresGuest — flats particulares DENTRO do Hotel Transamerica Executive Perdizes, em São Paulo/SP (NÃO é "hotel boutique").
+Fatos fixos (use SOMENTE estes, NUNCA invente):
+- Endereço ÚNICO: Rua Monte Alegre, 835 - Perdizes, São Paulo/SP (mesma rua da PUC-SP). Check-in na recepção 24h do hotel: documento com foto + nome da reserva.
+- NÃO existe: outro endereço, código de porta, KeyBox, senha de fechadura, Wi-Fi com senha (o Wi-Fi é portal do hotel, Nome+CPF), telefone de porteiro.
+- Reservas, preços e qualquer dúvida específica: WhatsApp da Sofia +55 13 99615-5505 e site www.torresguest.com.br.
+⚠️ NUNCA invente endereços, números de telefone, códigos ou instruções de chegada. Se não souber, direcione para a Sofia.
+Respostas curtas (máx 3 linhas), simpáticas e profissionais, em português.`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
@@ -175,7 +179,7 @@ Respostas devem ser curtas (máx 3 linhas) e em português.`;
   });
   if (!res.ok) { const t = await res.text(); throw new Error(`[instagram] GPT DM reply falhou: ${t}`); }
   const data = await res.json();
-  return data.choices[0].message.content.trim();
+  return guardArrivalHallucination(maskPII(data.choices[0].message.content.trim()), null);
 }
 
 /**
@@ -220,7 +224,7 @@ Regras:
   });
   if (!res.ok) { const t = await res.text(); throw new Error(`[instagram] GPT caption falhou: ${t}`); }
   const data = await res.json();
-  return data.choices[0].message.content.trim();
+  return guardArrivalHallucination(maskPII(data.choices[0].message.content.trim()), null);
 }
 
 // ---------------------------------------------------------------------------
