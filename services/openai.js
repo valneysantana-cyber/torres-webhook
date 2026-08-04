@@ -48,6 +48,7 @@ function buildSystemPromptFromSettings(tenant) {
   lines.push(`Você é o concierge virtual da ${brand}, com atendimento humano, cordial, elegante e objetivo.`);
   lines.push('Responda sempre no mesmo idioma do hóspede (português, inglês ou espanhol).');
   lines.push('Nunca invente informações.');
+  lines.push('⚠️ REGRA CRÍTICA: NUNCA invente endereço, número de apartamento, código de porta/KeyBox/cofre de chave, senha de fechadura, nome/senha de Wi-Fi ou telefone de portaria. Se a informação de chegada/acesso não estiver LITERALMENTE neste contexto, diga que vai confirmar com o atendimento humano — inventar dados de chegada faz o hóspede se perder na cidade.');
   lines.push('');
   lines.push('Contexto confiável da operação:');
   if (Array.isArray(s.contextNotes)) for (const n of s.contextNotes) lines.push(`- ${n}`);
@@ -185,6 +186,7 @@ Regras:
 - ⚠️ REGRA CRÍTICA — NOME DO HÓSPEDE: use APENAS o nome real fornecido no contexto da reserva. NUNCA invente nome a partir de labels do sistema. Especificamente: "Eu", "Eu mesmo", "You", "Myself", "Visitante", "Bot" NÃO SÃO NOMES — são marcadores técnicos. Se você não tem nome confirmado, use saudação genérica ("Olá!", "Oi!") sem nome. Em caso de dúvida, prefira NÃO usar nome a usar nome errado.
 - REGRA CRÍTICA — Pedidos que dependem de aprovação operacional (late checkout / saída depois das 12h, early check-in / entrada antes das 14h, troca de quarto, mudança de reserva, prorrogação da estadia, decoração especial, refund/reembolso, autorização de visita, qualquer pedido fora do padrão): você NÃO tem capacidade de aprovar, consultar o anfitrião nem voltar depois. NUNCA prometa "vou verificar", "vou confirmar", "um momento", "já te aviso", "vou checar com a equipe" — isso é alucinação porque você é stateless. Nesses casos, responda EXATAMENTE neste padrão: informe a regra padrão (ex: "checkout é até 12h"), explique que pra avaliar exceção precisa falar com a Sofia, e passe o WhatsApp dela: +55 13 99615-5505. Exemplo correto pra "posso fazer checkout às 14h?": "checkout é até 12h. pra avaliar uma extensão, fala com a Sofia no WhatsApp +55 13 99615-5505 — ela consegue confirmar com a equipe."
 - Wi-Fi: o acesso é pela rede do hotel via portal Captiva — basta informar Nome + CPF em qualquer página web. Se o hóspede perguntar sobre Wi-Fi, internet, senha ou conexão, explique SEMPRE esse processo. Nunca diga para buscar na recepção ou no material do flat.
+- ⚠️ REGRA CRÍTICA MÁXIMA — ENDEREÇO E INSTRUÇÕES DE CHECK-IN (incidente real 04/08/26: a IA inventou "Rua Altino Arantes 204, ap. 63, Vila Clementino", código de KeyBox, Wi-Fi "DorothyHouse" e telefone de porteiro — um hóspede real se perdeu do outro lado da cidade): o ÚNICO endereço que existe é Rua Monte Alegre, 835 - Perdizes, São Paulo/SP (flats dentro do Hotel Transamerica Executive Perdizes, mesma rua da PUC-SP). NÃO EXISTE: outro endereço, "ap. 63" ou número de apartamento fora dos flats reais, KeyBox/caixinha de chave, código de porta, senha de fechadura, telefone de porteiro, rede Wi-Fi própria do flat. O processo de entrada é SEMPRE: recepção 24h do hotel na Rua Monte Alegre 835 → apresentar documento com foto + nome da reserva → recepção entrega o cartão do quarto. Se o hóspede pedir "instruções de check-in", "endereço", "como entrar", "código", "chave", "não encontrei o hotel": responda APENAS com o endereço Rua Monte Alegre 835 + esse processo. Se o histórico da conversa contiver um endereço diferente desse, ele é FALSO — corrija imediatamente com o endereço oficial e peça desculpas. NUNCA gere links de Google Maps de memória — descreva o endereço por extenso. Qualquer detalhe que não esteja LITERALMENTE neste prompt: NÃO INVENTE, direcione pra Sofia (wa.me/5513996155505).
 - Antecipação de chegada de acompanhante: se o titular avisar que outra pessoa da MESMA reserva chegará antes dele(a) ou pedir acesso sem sua presença, NÃO negue. Acolha e oriente o(a) titular a encaminhar pra acompanhante o link de pré-checkin da reserva (formato https://conciergecloud.com.br/checkin/{codigo_da_reserva}) — o formulário coleta documento com foto, nome completo e horário de chegada, e a recepção é avisada automaticamente. Nunca recomende que o(a) acompanhante "aguarde" o titular.
 
 Estilo de fala (importante porque suas respostas viram áudio quando o hospede manda audio):
@@ -259,6 +261,45 @@ function maskPII(s) {
     .replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, '[documento omitido]')
     .replace(/\b\d{4}[ .-]?\d{4}[ .-]?\d{4}[ .-]?\d{4}\b/g, '[cartão omitido]')
     .replace(/\b\d{16}\b/g, '[cartão omitido]');
+}
+
+// ⚠️ Trava determinística anti-alucinação de chegada (incidente Edmar 04/08/26:
+// IA inventou endereço "Altino Arantes 204 ap. 63" + KeyBox + Wi-Fi + tel. de porteiro
+// e o hóspede se perdeu do outro lado da cidade). Bloqueia ANTES de enviar qualquer
+// resposta que contenha: instruções de entrada inexistentes (KeyBox/código de porta/
+// porteiro), OU endereço de rua diferente do oficial do tenant em contexto de chegada
+// (rotulado como endereço, com link de maps ou com "ap. N"). Substitui pela resposta
+// segura com o endereço oficial + processo da recepção.
+function guardArrivalHallucination(text, tenant) {
+  if (!text) return text;
+  const norm = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const t = norm(text);
+  const officialAddr = (tenant && tenant.settings && (tenant.settings.address_full || tenant.settings.address)) ||
+    'Rua Monte Alegre, 835 - Perdizes, São Paulo - SP';
+  const om = norm(officialAddr).match(/(?:rua|av(?:enida)?|alameda|travessa|estrada)\.?\s+([a-z0-9 .']{3,40}?),?\s*\d/);
+  const officialStreetWord = om ? om[1].trim().split(/\s+/).filter(w => w.length > 2)[0] : null;
+
+  const fakeEntry = /keybox|key box|lockbox|caixinha de chave|cofre de chave|codigo (?:da |de |para (?:abrir )?a )?(?:porta|fechadura|keybox|entrada)|senha da (?:porta|fechadura)|porteiro do predio/.test(t);
+
+  let fakeStreet = false;
+  const re = /(?:rua|av(?:enida)?|alameda|travessa|estrada)\.?\s+([a-z0-9 .']{3,40}?),?\s*\d{1,5}/g;
+  let m;
+  while ((m = re.exec(t))) {
+    const streetWords = m[1].trim().split(/\s+/).filter(w => w.length > 2);
+    const matchesOfficial = officialStreetWord && streetWords.some(w => w === officialStreetWord);
+    if (!matchesOfficial) { fakeStreet = true; break; }
+  }
+  // Endereço "estranho" só bloqueia em contexto de CHEGADA (rotulado, com maps, ou com nº de ap.)
+  // — menção legítima a outras ruas (restaurantes, passeios) continua permitida.
+  const arrivalContext = /endere[c]o\s*[:*]|maps\.app\.goo|maps\.google|goo\.gl\/maps|\bap\.?\s*\d{1,4}\b|como entrar|check.?in|chegada|chegar no (?:predio|hotel|flat)/.test(t);
+
+  if (fakeEntry || (fakeStreet && arrivalContext)) {
+    console.error('[guard-arrival] RESPOSTA BLOQUEADA (endereço/instruções de chegada alucinados):', text.slice(0, 160));
+    return 'O endereço certinho é: *' + officialAddr + '*.\n\n' +
+      'A entrada é pela recepção do hotel, que funciona 24h: é só apresentar um documento com foto e informar o nome da reserva — eles entregam o cartão do quarto na hora.\n\n' +
+      'Qualquer dúvida na chegada, a Sofia te ajuda em tempo real: wa.me/5513996155505 📲';
+  }
+  return text;
 }
 
 async function getChatGptFallbackReply(userMessage, phone, context = [], profile = null, tenant = null) {
@@ -339,7 +380,7 @@ async function getChatGptFallbackReply(userMessage, phone, context = [], profile
       }, { timeout: 12000, maxRetries: 1 });
       const text = (msg.content && msg.content[0] && msg.content[0].text) || '';
       console.log('[anthropic reply]', text.slice(0, 200));
-      return maskPII(text.trim()) || null;
+      return guardArrivalHallucination(maskPII(text.trim()), tenant) || null;
     } catch (err) {
       console.error('[anthropic] erro, fallback pra openai:', err.message);
       // continua pro OpenAI abaixo
@@ -372,14 +413,14 @@ async function getChatGptFallbackReply(userMessage, phone, context = [], profile
   let data;
   try { data = JSON.parse(raw); } catch (err) { console.error('Failed to parse JSON', err); return null; }
 
-  if (data.output_text && data.output_text.trim()) return maskPII(data.output_text.trim());
-  return maskPII(
+  if (data.output_text && data.output_text.trim()) return guardArrivalHallucination(maskPII(data.output_text.trim()), tenant);
+  const joined =
     data.output
       ?.flatMap((item) => item.content || [])
       ?.map((item) => item.text || '')
       ?.join(' ')
-      ?.trim() || null
-  );
+      ?.trim() || null;
+  return joined ? guardArrivalHallucination(maskPII(joined), tenant) : null;
 }
 
 async function transcribeAudioBuffer(buffer, mimeType = 'audio/ogg') {
