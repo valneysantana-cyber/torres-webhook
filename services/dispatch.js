@@ -65,32 +65,13 @@ async function dailyCheckinDispatch() {
     const emEstadia     = emEstadiaRaw.filter((r) => !_isExtraUnit(r));
     const checkoutsHoje = checkoutsHojeRaw.filter((r) => !_isExtraUnit(r));
 
-    // ☕ Sem café da manhã (31/07/26) — mesma régua do card ☕ do NOC:
-    // Airbnb nunca inclui café; Booking só quando o nº da reserva está flagado
-    // na coleção Atlas `semcafe_flags` (tarifa "Sem cafe da manha", marcação no Monitor).
-    let semCafeFlags = new Set();
-    try {
-      const mongoose = require('mongoose');
-      if (mongoose.connection && mongoose.connection.readyState === 1) {
-        const rows = await mongoose.connection.db.collection('semcafe_flags').find({}).toArray();
-        semCafeFlags = new Set(rows.map((f) => String(f.partnerCode)));
-      }
-    } catch (e) { console.error('[dispatch] semcafe_flags:', e.message); }
-    const isSemCafe = (r) => {
-      const p = String((r.partner && r.partner.name) || r.partner || '').toLowerCase();
-      if (p.includes('airbnb')) return true;
-      const pc = String(r.partnerCode || '');
-      return !!pc && semCafeFlags.has(pc);
-    };
-
     const formatLine = (r) => {
       const name = resolveGuestName(r);
       const apt = resolveApartmentName(r, listingsMap);
       const rawDate = r.checkOutDate || r.checkoutDate || r.endDate || '?';
       const checkout = rawDate !== '?' ? rawDate.split('-').reverse().join('/') : '?';
       const guests = r.guests || (r.guestsDetails && r.guestsDetails.length) || 1;
-      const cafe = isSemCafe(r) ? ' 🚫☕' : '';
-      return ` • ${name} → ${apt} — ${guests} hóspede${guests !== 1 ? 's' : ''} (saída: ${checkout})${cafe}`;
+      return ` • ${name} → ${apt} — ${guests} hóspede${guests !== 1 ? 's' : ''} (saída: ${checkout})`;
     };
 
     // Unidades EXTRA do predio (outros tenants, ex.: 1704 glauco-vaz) — Opcao B (15/06/2026)
@@ -133,21 +114,6 @@ async function dailyCheckinDispatch() {
       ``,
       `🚪 *Check-outs de hoje (${checkoutsCount}):*`,
       fmtCheckouts.join('\n'),
-      ``,
-      (() => {
-        // Seção ☕ — só free-text/email (o template Meta tem estrutura fixa;
-        // nas linhas do template o marcador 🚫☕ já aparece via formatLine).
-        // Regra (03/08): café conta a partir da manhã SEGUINTE ao check-in —
-        // quem chega hoje fica FORA da seção (1º café dele é amanhã).
-        const semCafeHoje = [...emEstadia, ...checkoutsHoje]
-          .filter((r, i, arr) => arr.findIndex((x) => String(x._id || x.id) === String(r._id || r.id)) === i)
-          .filter(isSemCafe);
-        return semCafeHoje.length
-          ? `☕ *SEM café da manhã hoje (${semCafeHoje.length}):*\n` +
-            semCafeHoje.map((r) => ` • ${resolveGuestName(r)} → ${resolveApartmentName(r, listingsMap)}`).join('\n') +
-            `\n_(avisar recepção/restaurante — Airbnb ou tarifa Booking sem café)_`
-          : `☕ Todos os hóspedes de hoje têm café incluso.`;
-      })(),
       ``,
       `📊 *Total de hóspedes ativos hoje: ${totalAtivos}*`,
       `✅ Relatório gerado automaticamente.`,
