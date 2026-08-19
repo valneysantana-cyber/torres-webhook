@@ -157,6 +157,7 @@ function phoneVariants(phone) {
 const _strip = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const HUB_SALES_RE = /(hubgenial|hub genial|plano (presenca|operacao|inteligencia)|15 dias|teste gratis|site profissional|loja online|loja virtual|\berp\b|sistema de gestao|gestao (financeira|do negocio|da loja|da clinica)|emissao fiscal|nota fiscal|nf-?e|nfs-?e|prontuario|odontograma|agenda(mento)? online|salao|barbearia|clinica|consultorio|petshop|restaurante|delivery|corretor|consultoria financeira|memoria de cliente|quero um site|fazer meu site|criar (um )?site)/;
 const HOSP_SALES_RE = /(airbnb|pousada|hotel|hospedagem|anfitria|anfitriao|hospede|temporada|reserva|check.?in|check.?out|stays|flat|apartamento de temporada|concierge)/;
+const HUB_GOLD_RE = /(hubgenial|hub genial|plano (presenca|operacao|inteligencia))/;
 function pickProspectTenant(messageText, storedTenantId) {
   const t = _strip(messageText);
   const hub = HUB_SALES_RE.test(t);
@@ -169,6 +170,20 @@ function pickProspectTenant(messageText, storedTenantId) {
 
 async function resolveTenantByGuestPhone(phone, fallbackTenant, messageText) {
   if (!phone || !fallbackTenant) return fallbackTenant;
+  // SINAL-OURO (Valney 19/08): msg cita a marca/planos HubGenial → bot de vendas
+  // cc_saas_erp MESMO que o telefone tenha reserva TorresGuest. Caso real: o
+  // proprio Valney (numero cadastrado como hospede de teste) clicou no CTA do
+  // site e caiu no concierge. Ninguem digita "HubGenial" por acaso — e hospede
+  // com negocio proprio e cross-sell legitimo. Regex ESTREITA de proposito.
+  try {
+    if (messageText && HUB_GOLD_RE.test(_strip(messageText))) {
+      const hubT = await fetchTenantById('cc_saas_erp');
+      if (hubT && hubT.active !== false) {
+        console.log('[tenant] phone=' + phone + ' sinal-ouro HubGenial → cc_saas_erp (override, ignora reserva)');
+        return hubT;
+      }
+    }
+  } catch (e) { console.warn('[tenant] gold-override falhou:', e.message); }
   try {
     const Reservation = require('../models/Reservation');
     const phones = phoneVariants(phone);
