@@ -732,10 +732,19 @@ function shouldSendFrigobarPix(text) {
   // agua R$ 7,50). Verbo de consumo + item do frigobar => cardapio + PIX.
   const isConsumptionVerb = /\b(tomei|tomamos|bebi|bebemos|consumi|consumimos|peguei|pegamos|usei|usamos|comi|comemos|abri|abrimos)\b/.test(t);
   const consumedFrigobarItem = isConsumptionVerb && FRIGOBAR_ITEMS_REGEX.test(t);
-  return (isFrigobarMention || consumedFrigobarItem)
-    && !isReservationContext
-    && !isRestockIntent
-    && !isRestaurantContext;
+  // FIX (Valney 19/08): hospede quer PAGAR/comprar item do frigobar sem dizer
+  // \"frigobar\" e sem verbo de consumo passado - ex: \"preciso pagar uma agua e
+  // chocolate\", \"quanto custa a cerveja\", \"me passa o pix da agua\". Item do
+  // frigobar + intencao de pagar/preco/pix => cardapio + PIX. NAO dispara
+  // \"quanto custa?\" sozinho (sem item) - mantem fix 16/05.
+  const payItemIntent = /(pagar|paguei|pagamento|comprar|comprei|quanto|preco|valor|\bpix\b|cardapio)/.test(t);
+  const wantsToPayItem = FRIGOBAR_ITEMS_REGEX.test(t) && payItemIntent
+    && !isRestaurantContext && !isRestockIntent;
+  return ((isFrigobarMention || consumedFrigobarItem)
+      && !isReservationContext
+      && !isRestockIntent
+      && !isRestaurantContext)
+    || wantsToPayItem;
 }
 function shouldRequestFrigobarRestock(text) {
   const t = stripAccents(text);
