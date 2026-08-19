@@ -157,7 +157,7 @@ function phoneVariants(phone) {
 const _strip = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const HUB_SALES_RE = /(hubgenial|hub genial|plano (presenca|operacao|inteligencia)|15 dias|teste gratis|site profissional|loja online|loja virtual|\berp\b|sistema de gestao|gestao (financeira|do negocio|da loja|da clinica)|emissao fiscal|nota fiscal|nf-?e|nfs-?e|prontuario|odontograma|agenda(mento)? online|salao|barbearia|clinica|consultorio|petshop|restaurante|delivery|corretor|consultoria financeira|memoria de cliente|quero um site|fazer meu site|criar (um )?site)/;
 const HOSP_SALES_RE = /(airbnb|pousada|hotel|hospedagem|anfitria|anfitriao|hospede|temporada|reserva|check.?in|check.?out|stays|flat|apartamento de temporada|concierge)/;
-const HUB_GOLD_RE = /(hubgenial|hub genial|plano (presenca|operacao|inteligencia))/;
+const HUB_GOLD_RE = /(hubgenial|hub genial|concierge ia|plano (vitrine|loja|gestao|empresa|presenca|operacao|inteligencia))/;
 function pickProspectTenant(messageText, storedTenantId) {
   const t = _strip(messageText);
   const hub = HUB_SALES_RE.test(t);
