@@ -143,6 +143,30 @@ function phoneVariants(phone) {
   return [...out];
 }
 
+
+// ---- Roteamento de vendas por intencao (Valney 19/08/2026) ----------------
+// Prospect SEM reserva pode ser lead de DUAS ofertas distintas no MESMO numero:
+//   - cc_saas_erp: HubGenial (site+loja+ERP p/ PMEs) — oferta nova
+//   - cc_sales:    ConciergeCloud hospedagem (Airbnb/pousadas) — oferta legada
+// Sinais de ouro: os CTAs do site HubGenial pre-preenchem a msg com
+// "HubGenial"/"plano Presenca|Operacao|Inteligencia" → deteccao confiavel.
+// Ambiguo → cc_saas_erp: o prompt dele ABRE perguntando o tipo de negocio
+// (triagem natural) e tem instrucao de encaminhar hospedagem ao time certo.
+// A escolha e PERSISTIDA por telefone (ProspectContext) p/ nao pular de
+// contexto no meio da conversa; sinal explicito posterior pode trocar.
+const _strip = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const HUB_SALES_RE = /(hubgenial|hub genial|plano (presenca|operacao|inteligencia)|15 dias|teste gratis|site profissional|loja online|loja virtual|\berp\b|sistema de gestao|gestao (financeira|do negocio|da loja|da clinica)|emissao fiscal|nota fiscal|nf-?e|nfs-?e|prontuario|odontograma|agenda(mento)? online|salao|barbearia|clinica|consultorio|petshop|restaurante|delivery|corretor|consultoria financeira|memoria de cliente|quero um site|fazer meu site|criar (um )?site)/;
+const HOSP_SALES_RE = /(airbnb|pousada|hotel|hospedagem|anfitria|anfitriao|hospede|temporada|reserva|check.?in|check.?out|stays|flat|apartamento de temporada|concierge)/;
+function pickProspectTenant(messageText, storedTenantId) {
+  const t = _strip(messageText);
+  const hub = HUB_SALES_RE.test(t);
+  const hosp = HOSP_SALES_RE.test(t);
+  if (hub && !hosp) return 'cc_saas_erp';
+  if (hosp && !hub) return 'cc_sales';
+  if (storedTenantId) return storedTenantId;      // ambiguo/sem sinal: mantem o contexto ja escolhido
+  return 'cc_saas_erp';                          // 1o contato ambiguo: Hub abre com pergunta de triagem
+}
+
 async function resolveTenantByGuestPhone(phone, fallbackTenant, messageText) {
   if (!phone || !fallbackTenant) return fallbackTenant;
   try {
@@ -192,10 +216,31 @@ async function resolveTenantByGuestPhone(phone, fallbackTenant, messageText) {
       console.log('[tenant] phone=' + phone + ' sem reserva mas msg tem hospede-cues → mantendo fallbackTenant=' + fallbackTenant.tenantId + ' (não cc_sales)');
       return fallbackTenant;
     }
-    const sales = await fetchTenantById('cc_sales');
+    // Roteia o prospect entre as ofertas (site+ERP vs hospedagem) e persiste.
+    let storedId = null;
+    let ProspectContext = null;
+    try {
+      ProspectContext = require('../models/ProspectContext');
+      const stored = await ProspectContext.findOne({ phoneClean: { $in: phones } }).lean();
+      if (stored) storedId = stored.tenantId;
+    } catch (e) { console.warn('[tenant] prospect-context read falhou:', e.message); }
+    const targetId = pickProspectTenant(messageText, storedId);
+    if (ProspectContext && targetId !== storedId) {
+      try {
+        await ProspectContext.updateOne({ phoneClean: phones[0] }, { $set: { tenantId: targetId, updatedAt: new Date() } }, { upsert: true });
+      } catch (e) { console.warn('[tenant] prospect-context write falhou:', e.message); }
+    }
+    const sales = await fetchTenantById(targetId);
     if (sales && sales.active !== false) {
-      console.log('[tenant] phone=' + phone + ' sem reserva → cc_sales (prospect)');
+      console.log('[tenant] phone=' + phone + ' sem reserva → ' + targetId + ' (prospect' + (storedId ? ', contexto salvo: ' + storedId : '') + ')');
       return sales;
+    }
+    // tenant alvo inativo/inexistente → tenta o outro balde de vendas; senao legado
+    const alt = targetId === 'cc_sales' ? 'cc_saas_erp' : 'cc_sales';
+    const salesAlt = await fetchTenantById(alt);
+    if (salesAlt && salesAlt.active !== false) {
+      console.log('[tenant] phone=' + phone + ' sem reserva → ' + alt + ' (fallback: ' + targetId + ' indisponivel)');
+      return salesAlt;
     }
     return fallbackTenant;
   } catch (e) {
@@ -248,6 +293,7 @@ async function resolveTenantByAccommodation(accommodationName) {
 
 module.exports = {
   getTenantByPhoneId,
+  pickProspectTenant,
   resolveTenantByGuestPhone,
   resolveTenantByAccommodation,
   fetchTenantById,
